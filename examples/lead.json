@@ -1,0 +1,11 @@
+{
+  "event_id": "demo-cedar-01",
+  "name": "Alex Morgan",
+  "email": "alex@cedar.example",
+  "company": "Cedar Studio",
+  "message": "We receive project inquiries in a shared inbox. Please connect our website form to a CRM and route requests to the right team.",
+  "service": "automation",
+  "region": "emea",
+  "urgency": "urgent",
+  "demo_outcome": "ok"
+}

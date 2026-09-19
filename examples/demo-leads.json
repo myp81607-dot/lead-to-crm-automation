@@ -1,0 +1,79 @@
+[
+  {
+    "event_id": "demo-cedar-01",
+    "name": "Alex Morgan",
+    "email": "alex@cedar.example",
+    "company": "Cedar Studio",
+    "message": "We receive project inquiries in a shared inbox. Please connect our website form to a CRM and route requests to the right team.",
+    "service": "automation",
+    "region": "emea",
+    "urgency": "urgent",
+    "demo_outcome": "ok"
+  },
+  {
+    "event_id": "demo-harbor-01",
+    "name": "Jordan Lee",
+    "email": "jordan@harbor.example",
+    "company": "Harbor Analytics",
+    "message": "Our weekly reporting takes several spreadsheet exports. We need one clear view of project requests and outstanding work.",
+    "service": "analytics",
+    "region": "americas",
+    "urgency": "normal",
+    "demo_outcome": "ok"
+  },
+  {
+    "event_id": "demo-field-01",
+    "name": "Sam Rivera",
+    "email": "sam@field.example",
+    "company": "Field Supply",
+    "message": "Our existing order intake automation stops when a required field is empty. Help us make failures visible.",
+    "service": "support",
+    "region": "apac",
+    "urgency": "normal",
+    "demo_outcome": "ok"
+  },
+  {
+    "event_id": "demo-cedar-02",
+    "name": "Alex Morgan",
+    "email": "alex@cedar.example",
+    "company": "Cedar Studio",
+    "message": "Following up: please include an exception review queue and retry visibility.",
+    "service": "automation",
+    "region": "emea",
+    "urgency": "normal",
+    "demo_outcome": "ok"
+  },
+  {
+    "event_id": "demo-review-01",
+    "name": "Taylor Quinn",
+    "email": "taylor-at-example",
+    "company": "Northline Works",
+    "message": "We want help organizing incoming requests, but have not selected a service yet.",
+    "service": "unsure",
+    "region": "emea",
+    "urgency": "normal",
+    "demo_outcome": "ok"
+  },
+  {
+    "event_id": "demo-timeout-01",
+    "name": "Casey Park",
+    "email": "casey@willow.example",
+    "company": "Willow Consulting",
+    "message": "Connect new consultation requests to a shared service queue.",
+    "service": "automation",
+    "region": "emea",
+    "urgency": "normal",
+    "demo_outcome": "timeout_after_write"
+  },
+  {
+    "event_id": "demo-auth-01",
+    "name": "Riley Chen",
+    "email": "riley@stone.example",
+    "company": "Stone Systems",
+    "message": "Help repair a broken reporting workflow.",
+    "service": "support",
+    "region": "apac",
+    "urgency": "normal",
+    "demo_outcome": "auth_error"
+  }
+]

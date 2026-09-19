@@ -1,0 +1,28 @@
+test_ai_disabled_by_default_and_invalid_response_labeled (test_pipeline.AdapterTests.test_ai_disabled_by_default_and_invalid_response_labeled) ... ok
+test_ai_json_nonobjects_are_not_trusted (test_pipeline.AdapterTests.test_ai_json_nonobjects_are_not_trusted) ... ok
+test_hubspot_create_update_and_readback_contract_offline (test_pipeline.AdapterTests.test_hubspot_create_update_and_readback_contract_offline) ... ok
+test_hubspot_failed_readback_never_claims_success (test_pipeline.AdapterTests.test_hubspot_failed_readback_never_claims_success) ... ok
+test_36_synthetic_submissions (test_pipeline.PipelineTests.test_36_synthetic_submissions) ... ok
+test_auth_failure_is_not_automatically_retried (test_pipeline.PipelineTests.test_auth_failure_is_not_automatically_retried) ... ok
+test_contact_normalization (test_pipeline.PipelineTests.test_contact_normalization) ... ok
+test_event_id_collision_rejected (test_pipeline.PipelineTests.test_event_id_collision_rejected) ... ok
+test_event_replay_does_not_repeat_side_effect (test_pipeline.PipelineTests.test_event_replay_does_not_repeat_side_effect) ... ok
+test_input_changes_route_and_contact_output (test_pipeline.PipelineTests.test_input_changes_route_and_contact_output) ... ok
+test_invalid_input_review_preserves_original (test_pipeline.PipelineTests.test_invalid_input_review_preserves_original) ... ok
+test_invalid_shapes_are_not_silently_accepted (test_pipeline.PipelineTests.test_invalid_shapes_are_not_silently_accepted) ... ok
+test_malformed_rules_become_review (test_pipeline.PipelineTests.test_malformed_rules_become_review) ... ok
+test_missing_readback_remains_uncertain (test_pipeline.PipelineTests.test_missing_readback_remains_uncertain) ... ok
+test_new_contact_inquiry_waits_for_uncertain_prior_event (test_pipeline.PipelineTests.test_new_contact_inquiry_waits_for_uncertain_prior_event) ... ok
+test_older_retry_cannot_overwrite_later_inquiry (test_pipeline.PipelineTests.test_older_retry_cannot_overwrite_later_inquiry) ... ok
+test_prompt_injection_stays_plain_text (test_pipeline.PipelineTests.test_prompt_injection_stays_plain_text) ... ok
+test_rate_limit_respects_due_time_and_then_recovers (test_pipeline.PipelineTests.test_rate_limit_respects_due_time_and_then_recovers) ... ok
+test_restart_processes_saved_but_not_started_event (test_pipeline.PipelineTests.test_restart_processes_saved_but_not_started_event) ... ok
+test_restart_recovers_inflight_without_repeating_write (test_pipeline.PipelineTests.test_restart_recovers_inflight_without_repeating_write) ... ok
+test_retry_limit_is_three (test_pipeline.PipelineTests.test_retry_limit_is_three) ... ok
+test_rules_file_edit_changes_next_assignment (test_pipeline.PipelineTests.test_rules_file_edit_changes_next_assignment) ... ok
+test_timeout_after_write_reconciles_without_second_write (test_pipeline.PipelineTests.test_timeout_after_write_reconciles_without_second_write) ... ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 0.733s
+
+OK

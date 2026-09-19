@@ -1,0 +1,10 @@
+{
+  "event_id": "n8n-demo-001",
+  "name": "Morgan Chen",
+  "email": "morgan@example.com",
+  "company": "Example Studio",
+  "message": "We need to route website inquiries and keep our contact list up to date.",
+  "service": "automation",
+  "region": "apac",
+  "urgency": "normal"
+}

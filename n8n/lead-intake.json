@@ -1,0 +1,118 @@
+{
+  "name": "Lead intake and due retries — local demo",
+  "nodes": [
+    {
+      "id": "lead-webhook",
+      "name": "Receive lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [260, 240],
+      "webhookId": "lead-intake-local-demo",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-intake-demo",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "notesInFlow": true,
+      "notes": "Local synthetic-data demo. Send one JSON object with a stable event_id. This webhook has no authentication; keep the demo private."
+    },
+    {
+      "id": "store-lead",
+      "name": "Submit to lead service",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 240],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8765/api/leads",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "retryOnFail": false,
+      "notesInFlow": true,
+      "notes": "The backend owns validation, event deduplication, contact updates and bounded CRM retries. Preserve its HTTP status and body. Do not enable automatic node retries."
+    },
+    {
+      "id": "respond-result",
+      "name": "Return actual result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [880, 240],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.body }}",
+        "options": {
+          "responseCode": "={{ $json.statusCode }}"
+        }
+      },
+      "notesInFlow": true,
+      "notes": "200 means the service stored the event; inspect event.status for completion or review. A collision remains 409 and malformed input remains 422. Transport errors fail the execution before this node."
+    },
+    {
+      "id": "retry-schedule",
+      "name": "Every minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 560],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 1 }]
+        }
+      },
+      "notesInFlow": true,
+      "notes": "Runs after publishing/activating the workflow. Due times and retry limits are persisted by the backend."
+    },
+    {
+      "id": "run-due",
+      "name": "Process due work",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 560],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8765/api/process-due",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": { "responseFormat": "json" }
+          }
+        }
+      },
+      "retryOnFail": false,
+      "notesInFlow": true,
+      "notes": "Calls one bounded backend pass. A non-2xx response fails this scheduled execution. Uncertain external writes require reconciliation, not blind recreation."
+    }
+  ],
+  "connections": {
+    "Receive lead": {
+      "main": [[{ "node": "Submit to lead service", "type": "main", "index": 0 }]]
+    },
+    "Submit to lead service": {
+      "main": [[{ "node": "Return actual result", "type": "main", "index": 0 }]]
+    },
+    "Every minute": {
+      "main": [[{ "node": "Process due work", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "UTC" },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
