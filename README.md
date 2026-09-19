@@ -14,9 +14,11 @@ A small B2B service team receives requests through a form. Someone usually reads
 
 ## Try it in five minutes
 
-Requires Python 3.12+; no packages, database server or API keys are needed for local mode. Download this repository, then open a terminal in its folder:
+Requires Python 3.12+; no packages, database server or API keys are needed for local mode. Clone the [repository](https://github.com/myp81607-dot/lead-to-crm-automation), or download its ZIP and open a terminal in the extracted folder:
 
 ```sh
+git clone https://github.com/myp81607-dot/lead-to-crm-automation.git
+cd lead-to-crm-automation
 python app.py
 ```
 

@@ -14,9 +14,11 @@
 
 ## 五分钟启动
 
-需要 Python 3.12+。本地模式不需要安装第三方包、数据库服务或填写 API 密钥。下载本仓库后，在解压得到的仓库目录打开终端：
+需要 Python 3.12+。本地模式不需要安装第三方包、数据库服务或填写 API 密钥。克隆[本仓库](https://github.com/myp81607-dot/lead-to-crm-automation)，或下载 ZIP 后在解压得到的仓库目录打开终端：
 
 ```sh
+git clone https://github.com/myp81607-dot/lead-to-crm-automation.git
+cd lead-to-crm-automation
 python app.py
 ```
 
