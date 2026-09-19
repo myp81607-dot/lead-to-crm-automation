@@ -1,0 +1,22 @@
+[
+  {
+    "event_id": "review-old-001",
+    "name": "Alex Morgan",
+    "email": "alex@review.example",
+    "company": "Old company",
+    "message": "Our original request was to organize the inquiry inbox.",
+    "service": "unsure",
+    "region": "emea",
+    "urgency": "normal"
+  },
+  {
+    "event_id": "review-new-001",
+    "name": "Alex Morgan",
+    "email": "alex@review.example",
+    "company": "New company",
+    "message": "Our current company is New company. Connect our website form and CRM.",
+    "service": "automation",
+    "region": "emea",
+    "urgency": "normal"
+  }
+]

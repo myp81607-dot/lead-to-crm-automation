@@ -159,9 +159,29 @@ class LeadService:
         self.save(event)
         return event
 
+    def archive_older_inquiry(self, event, newer):
+        outcome = "already updated this contact" if newer["status"] == "completed" else "has an unconfirmed CRM attempt; inspect that result first"
+        event.update(status="archived", next_attempt=None, superseded_by=newer["id"],
+                     contact_id=newer.get("contact_id"),
+                     reason=f"Newer inquiry {newer['id']} {outcome}. This inquiry is filed and assigned; its older contact details were not written.")
+        p = event["normalized"]
+        event["draft"] = f"To: {event['owner']}\nSubject: Historical inquiry · {p['company']}\n\n{p['name']} <{p['email']}>\n{event['extracted']['summary']}\n\nEvent: {event['id']}\nContact unchanged; see newer inquiry {newer['id']} for its CRM result.\nDraft only — no message was sent."
+        self.log(event, "older_contact_update_skipped", event["reason"])
+        self.save(event)
+        return event
+
     def process(self, event):
         # One application process owns the queue; the lock spans the CRM operation.
-        for other in reversed(self.events()):
+        events = self.events()
+        # Receipt order, not review time, determines which inquiry can update a contact.
+        # A newer uncertain write also owns its reconciliation; do not overwrite its marker.
+        for newer in events:
+            if newer["id"] == event["id"]:
+                break
+            if (newer["normalized"].get("email") == event["normalized"]["email"]
+                    and newer["status"] in ("completed", "processing", "reconcile_required")):
+                return self.archive_older_inquiry(event, newer)
+        for other in reversed(events):
             if other["id"] == event["id"]:
                 break
             pending = other["status"] in ("processing", "reconcile_required", "retry_wait", "blocked_contact", "ready") or (other["status"] == "blocked" and other["attempts"] < MAX_ATTEMPTS)
@@ -259,7 +279,7 @@ class LeadService:
         total_contacts = len(contacts) if self.mode == "local" else len({e["contact_id"] for e in events if e["contact_id"]})
         return {"events": events, "contacts": contacts if self.mode == "local" else [],
                 "mode": self.mode, "ai_mode": "configured" if os.getenv("AI_URL") and os.getenv("AI_MODEL") else "disabled",
-                "stats": {"total": len(events), "completed": sum(e["status"] == "completed" for e in events),
+                "stats": {"total": len(events), "completed": sum(e["status"] in ("completed", "archived") for e in events),
                           "review": sum(e["status"] in ("needs_review", "blocked", "reconcile_required") for e in events),
                           "waiting": sum(e["status"] in ("retry_wait", "blocked_contact", "processing") for e in events), "contacts": total_contacts}}
 

@@ -1,100 +1,75 @@
-# 表单咨询到 CRM 的自动化处理
+# 表单咨询与联系人更新
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-**把网站咨询变成有人负责、能够追踪的处理队列。**
+小型服务团队收到网站咨询后，需要保存原文、分配跟进人，并确认联系人哪一份资料是最新的。这个工具保留每次咨询的处理历史，同时按邮箱维护一条联系人记录。
 
-小型 B2B 服务团队收到表单咨询后，通常要人工读消息、复制联系人信息、分配负责人，再准备内部跟进。这个项目把这些步骤串起来：提交咨询后，可以看到谁负责、联系人更新了什么，以及哪些事情还需要人工处理。
+表单或 n8n Webhook → 校验并分派 → 更新联系人，或留下明确的待处理事项。
 
-**输入：**联系人资料、咨询原文、服务类别、地区和紧急程度。**输出：**处理记录、按邮箱合并的联系人、有理由的分配结果，以及内部通知草稿。资料不完整或 CRM 写入结果不确定时，会明确进入待处理队列。
+[58 秒完整流程录像](docs/demo.webm) · [旧咨询复核演示](docs/review-update.webm) · [界面截图](docs/screenshots/02-output.png)。GitHub 提供录像下载入口，点击 **View raw** 后保存打开即可。第一段保留原版界面，接入和故障恢复行为不变；复核片段展示本轮界面和下面的修复。
 
-> 使用合成数据的个人作品演示，不是付费客户案例。本地 SQLite CRM 可完整运行。HubSpot adapter 和可选 AI 接口**尚未实连验证**；n8n 导出已做结构检查，尚未在 n8n 中执行。系统不会发送真实消息。
+这是使用虚构咨询的个人项目。本地 Python 与 SQLite CRM 无需账号或密钥即可运行；工作流已在 n8n 2.39.8 中实际导入并运行，包含定时重试，详见[安装与执行记录](n8n/README.md)。HubSpot 和可选模型接口未实连验证，通知只保存为草稿，不会发送。
 
-![真实运行界面：已完成咨询、负责人和本地通知草稿](docs/screenshots/02-output.png)
+适合据此定制一个表单到 CRM 的同步，或修复已有咨询流程。开始前需要一份样例输入、目标联系人字段、分派规则，以及获授权的测试环境。
 
-## 五分钟启动
+![咨询历史与当前联系人资料并列显示](docs/screenshots/02-output.png)
 
-需要 Python 3.12+。本地模式不需要安装第三方包、数据库服务或填写 API 密钥。克隆[本仓库](https://github.com/myp81607-dot/lead-to-crm-automation)，或下载 ZIP 后在解压得到的仓库目录打开终端：
+## 在本机运行
+
+安装 Python 3.12 或以上版本。[下载仓库 ZIP](https://github.com/myp81607-dot/lead-to-crm-automation/archive/refs/heads/main.zip)，解压后在该目录打开终端，不需要安装 Python 第三方包。
 
 ```sh
-git clone https://github.com/myp81607-dot/lead-to-crm-automation.git
-cd lead-to-crm-automation
 python app.py
 ```
 
-打开 **http://127.0.0.1:8765**。另开一个终端，载入 7 条合成演示咨询：
+打开 [localhost:8765](http://127.0.0.1:8765)，点击 **New inquiry → Fill sample → Submit inquiry**。也可以另开终端载入七条样例：
 
 ```sh
 python demo.py
 ```
 
-也可以点击 **New inquiry → Fill sample → Submit inquiry** 自己提交。数据保存在 `data/` 下的 SQLite 数据库，不会进入 Git。重复运行 `demo.py` 会识别已有事件，不新增相同记录。Ctrl+C 停止；使用 `python app.py --db data/another-demo.db` 可以开始一个全新的演示库。
+样例包含非法邮箱、尚未分类的咨询、模拟凭据失效，以及需要核对写入结果的咨询。重复执行命令会识别相同事件，不增加记录。数据保存在不会提交到 Git 的 `data/leads.db`；Ctrl+C 停止服务，`python app.py --db data/fresh.db` 可以换一个全新的数据库。
 
-## 可以直接验证的价值
+## 换成自己的输入和规则
 
-| 操作 | 可观察结果 |
-| --- | --- |
-| 提交有效咨询 | 查看分配团队、联系人 ID、原文、处理历史和通知草稿。 |
-| 重放完全相同的事件 | 返回 `duplicate: true`，不重复写 CRM 或生成额外草稿。 |
-| 同一邮箱、使用新事件 ID 再咨询 | 更新已有联系人，同时保留两次咨询的独立记录。 |
-| 服务从 automation 改为 analytics | 从 Workflow team 改分配到 Data team；规则见 [rules.json](rules.json)。 |
-| 邮箱非法，或选择 unsure | 显示具体复核原因，CRM 尝试次数为零，可人工修正后处理。 |
-| 选择本地“写入后超时”故障 | 显示结果不确定；点击 **Verify CRM result** 读回事件标记及字段，核对成功后才完成。 |
-| 模拟限流或凭据失效 | 按到期时间重试且最多三次，或阻止自动重试并提示人工处理。 |
+把 [examples/lead.json](examples/lead.json) 复制为 `data/my-inquiry.json`，换成你有权处理的资料和咨询原文，选择服务类别、地区，并为每次新咨询填写新的 `event_id`。重试同一次投递时，保持 ID 和请求内容完全相同。
 
-<details>
-<summary>更多真实运行截图：输入与异常处理</summary>
-
-![合成咨询输入](docs/screenshots/01-input.png)
-![不确定写入等待核对](docs/screenshots/03-exception.png)
-
-</details>
-
-[浏览器操作短录像](docs/demo.webm) · [90 秒演示步骤](docs/demo.md)
-
-## 实现方式
-
-```mermaid
-flowchart LR
-    F[表单或 n8n Webhook] --> V[校验与归一化]
-    V -->|资料不完整| H[人工复核]
-    H --> V
-    V --> R[服务与地区明确规则]
-    R --> Q[(SQLite 事件队列)]
-    Q --> C[本地 CRM 或 HubSpot adapter]
-    C -->|读回确认| D[本地通知草稿]
-    C -->|已知暂时拒绝| T[有限重试]
-    T --> Q
-    C -->|写入结果不确定| U[读取 CRM 核对]
+```sh
+curl -X POST http://127.0.0.1:8765/api/leads -H "Content-Type: application/json" --data-binary @data/my-inquiry.json
 ```
 
-Python 后端统一管理校验、去重和恢复；[n8n 工作流](n8n/README.md) 负责 Webhook 接入与周期性触发到期重试，调用同一套 API。英文界面使用原生 JavaScript，显示后端真实保存的结果。
+Windows 使用 `curl.exe`，或采用 [operations.md](docs/operations.md) 中的 PowerShell 命令。修改 [rules.json](rules.json) 的团队名称后，再提交一条新咨询即可看到新分派。例如把 `"automation": "Workflow team"` 改为 `"automation": "Intake team"`，下一条自动化咨询会分给 Intake team；已有咨询历史中的旧分派不变。
 
-事件 ID 用来识别重复投递，归一化邮箱用来合并联系人，两者分开实现。同一事件 ID 携带不同内容返回 HTTP 409。同一联系人的未完成写入按顺序执行，避免旧请求重试覆盖后来的咨询。进程在写入中断开后，重启会要求先核对，而不是盲目重发。
+如需通过 n8n 接收请求，按照[同机安装步骤](n8n/README.md)导入仓库内的工作流。它调用同一套 API：Python 负责去重和重试状态，n8n 提供 Webhook 和每分钟的到期处理触发。
 
-## 实际验证
+## 遇到待处理事项时
+
+| 界面状态 | 处理方式 |
+| --- | --- |
+| Needs review | 修正缺失或非法字段后提交，原始输入仍保留在历史中。 |
+| Filed · contact unchanged | 同邮箱已有较新咨询完成更新，或其 CRM 结果还不确定。旧请求仍会分派和留档，但不会覆盖较新资料。可打开关联的新咨询或查看当前联系人。 |
+| Retry scheduled | 等待到期，由 n8n 调度或 **Process due retries** 推进。每个事件的 CRM 步骤最多尝试三次。 |
+| Verify result | **Verify CRM result** 读取 CRM，核对事件标记与字段。不匹配时保持未解决，不重复写入。 |
+| Blocked | 先检查凭据、配置错误或重试次数，再决定下一步；无效凭据不会自动重试。 |
+
+旧咨询待复核时，不会挡住新的有效咨询。稍后修正旧请求，也不代表要把它的联系人资料重新设为最新；资料顺序以收到咨询的先后为准，修正邮箱后碰到已有联系人时也如此。
+
+## 实际检查过什么
+
+本轮先复现了 `Old company / unsure → New company / automation → 只修旧咨询类别`。修复前联系人会退回 Old company；现在公司名、description 和事件 ID 仍对应较新咨询，旧请求被分派留档，CRM 写入次数为零。
+
+在 Windows / Python 3.14.5 上，六项复核相关测试与两项既有顺序测试通过，覆盖改邮箱碰到新联系人、普通修正、另一邮箱、较新写入不确定、重启恢复和重试顺序。[测试输出](docs/test-results.txt)保留此前 23 项基线及本轮针对性结果。基线的 36 次合成提交产生 34 个独立事件、恢复后 29 个完成、5 个待复核和 27 个联系人；这是固定样例上的行为验证，不是生产效果或模型准确率。
 
 ```sh
 python -m unittest discover -s tests -v
 ```
 
-在 **Windows / Python 3.12.14 上，23 项测试通过**，包含 36 次合成咨询提交：34 个独立事件、2 次完全相同的重放；重试与读回恢复后 29 个完成、5 个待复核、27 个本地联系人。两次重放没有增加 CRM 尝试。还覆盖了输入/规则变化、非法字段、凭据失效、有限退避、不确定结果、同一联系人的顺序和重启恢复。此前的 22 项测试版本也在 Python 3.14.5 上通过；仓库保存的是最终 23 项测试输出。
+n8n 的实际执行、软件版本和复验命令见 [n8n/README.md](n8n/README.md)。本地模式下的超时与限流明确属于故障模拟；没有执行付费推理、真实 HubSpot 写入或真实消息发送。
 
-这些是确定性行为测试，**不是 AI 分类准确率或生产可靠性指标**。HubSpot 请求协议和 AI 故障处理只做了离线验证，未调用真实模型，外部模型用量与费用为零。详见 [测试原始输出](docs/test-results.txt)、[合成输入](examples/acceptance.json)、[运行与接口说明](docs/operations.md)。
+## 接入外部 CRM 前
 
-## 范围与局限
+每个数据库只运行一个服务进程，供本机使用。本版没有公网部署、生产鉴权、多团队或数据保留策略，后端只监听回环地址，不应直接暴露为无鉴权的公网服务。
 
-- 单机、单进程、仅监听本地回环地址；没有生产鉴权、多租户隔离或公网部署配置。每个数据库只运行一个服务进程。
-- AI 默认关闭；显式配置兼容接口后，只提供摘要和类别建议，分配仍依据表单字段。调用失败标为不可用，真实模型质量尚未验证。
-- HubSpot 模式由操作者提供获授权测试账户令牌，写入姓名、邮箱、公司和包含事件标记的 description。团队分配仅保存在本地，不修改 HubSpot owner，不发送通知。真实权限和账户行为待验证。
-- 超时后的读回不匹配会保持未解决，查不到联系人也不会自动再次创建。需人工检查外部 CRM，没有“强制成功”按钮。
-- 联系人保存最新资料，每次咨询保留原文、分配、修正记录与草稿。不合并邮箱别名，通知始终只是本地草稿。
-- n8n 需要同一主机网络内的本地实例；未配置云连接或容器网络。未执行真实 HubSpot 测试；短录像无配音。
+HubSpot adapter 会用所接受咨询的资料替换姓名、公司和 description，并在 description 中加入事件标记；不会分配 HubSpot owner。启用前应先确定字段映射和获授权测试账户。[运行与接口说明](docs/operations.md)列出了令牌环境变量、读回核对、失败状态和可选摘要模型的配置方式。
 
-## 本人实现与参考来源
-
-原创实现包含持久化队列、状态转换、两类去重、联系人写入顺序、读回恢复、规则解释、人工修正界面、本地故障模拟、可选接口、测试、合成样例及 n8n 导出。开发使用了 AI 辅助；上述验证结论来自实际执行。
-
-参考 [Mohammad Abubakar 的 n8n 表单线索模板](https://n8n.io/workflows/12374-capture-website-leads-to-hubspot-or-google-sheets-with-slack-follow-up/) 的接入到跟进流程，以及官方 [n8n HubSpot 节点文档](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.hubspot/) 和 [HubSpot Contacts 文档](https://developers.hubspot.com/docs/api-reference/legacy/crm/objects/contacts/guide) 的集成边界与邮箱查询方式。未复制模板 JSON 或第三方代码；[来源与许可证说明](docs/references.md) 逐项列出了实际借鉴内容。原创代码使用 [MIT 许可证](LICENSE)。
-
-**作品简介：**一个可本地运行的表单咨询处理工具，展示联系人更新、重复投递处理、人工复核与故障恢复。适合作为小范围表单到 CRM 集成的演示起点，不宣称未发生的客户效果或经济收益。
+代码与小型 n8n 导出为本项目编写，开发使用 AI 辅助。公开 n8n 线索模板提供了流程参考，官方 n8n 和 HubSpot 文档提供了接口依据，未复制模板代码。详见[来源与许可证说明](docs/references.md)；原创代码使用 [MIT 许可证](LICENSE)。

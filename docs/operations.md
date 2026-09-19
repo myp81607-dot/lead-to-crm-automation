@@ -40,6 +40,7 @@ Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8765/api/leads' -ContentTy
 | State | Meaning and next step |
 | --- | --- |
 | `completed` | Contact read-back confirmed. Exactly one local draft stored on the event. |
+| `archived` | An older inquiry was reviewed after a newer inquiry updated this email or began an uncertain write. It is assigned and filed, with a historical draft, but does not write its older fields. `superseded_by` links to the newer inquiry. |
 | `needs_review` | Missing/invalid fields or unavailable routing rules. Correct input in the UI. |
 | `retry_wait` | Known temporary rejection or failed read before writing. Wait at least 2 then 4 seconds; HubSpot `Retry-After` can extend the wait. At most three CRM attempts per event. |
 | `blocked` | Credential/configuration rejection, or retry budget exhausted. No scheduled retry. Correct external configuration before a manual retry; after three attempts, investigate and use a new event only for a known-safe corrective request. |
@@ -51,6 +52,20 @@ Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8765/api/leads' -ContentTy
 Read-back must match email, name, company and description (which contains `[lead-event:EVENT_ID]` and original message). Missing or different data remains uncertain. A later external edit can therefore prevent automatic confirmation. The operator must inspect HubSpot and resolve the discrepancy externally; this small demo intentionally provides no force-complete or force-create action. A terminal known-safe failure with three used attempts cannot write again, so a later new event may proceed.
 
 No exactly-once guarantee is claimed across arbitrary external systems. Event deduplication is local; the contact marker and read-back comparison constrain recovery. The app is single-process, and the review UI is local rather than an authenticated multi-user audit system.
+
+The Handled total includes `completed` and `archived` inquiries; it is not a count of CRM writes. Current contact details in the local UI come from the contacts table, while the selected inquiry displays its own historical input. In HubSpot mode the full contact directory is not mirrored locally.
+
+### Try the older-review case
+
+With the local server running, load the two [review-ordering examples](../examples/review-ordering.json):
+
+```sh
+python demo.py --scenario review-ordering
+```
+
+Open `review-old-001` and correct only Service to Automation. `review-new-001` has already saved New company. The older inquiry becomes `archived`, has zero CRM attempts, keeps its own owner and historical draft, and points to the newer inquiry. Company, description and `last_event_id` remain from the newer request. If the old email is corrected to a different contact without a newer inquiry, normal synchronization proceeds.
+
+Only a newer confirmed update or uncertain/in-progress write causes this skip. New valid inquiries are not blocked by old `needs_review` items. Existing known-safe retries still execute in receipt order. If a newer write is uncertain, the UI says so; archiving the old inquiry does not confirm that write. Receipt order is the SQLite insertion order, not the time an operator corrected a form. A fresh database is needed to repeat the example from its initial state; an exact replay returns its already saved result.
 
 ## HubSpot adapter — live verification outstanding
 

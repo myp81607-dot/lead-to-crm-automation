@@ -1,100 +1,75 @@
-# Lead-to-CRM Automation
+# Lead intake and CRM updates
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-**Turn website inquiries into an owned, traceable work queue.**
+A small service team needs somewhere to put website inquiries, assign follow-up and check which contact details are current. This application gives each inquiry its own history while keeping one contact per email.
 
-A small B2B service team receives requests through a form. Someone usually reads each message, copies contact details into a CRM, chooses an owner and follows up. This project makes that handoff visible: submit an inquiry, see which team owns it, inspect the contact update, and resolve anything that could not safely finish.
+Form or n8n webhook → validate and assign → update the contact, or leave a clear review task.
 
-**Input:** contact details, request text, service, region and urgency. **Output:** a tracked event, one contact per email, an explained assignment and an internal notification draft. Invalid input and uncertain CRM outcomes stay visible for a person to handle.
+[58-second walkthrough](docs/demo.webm) · [Old inquiry review](docs/review-update.webm) · [Screenshot](docs/screenshots/02-output.png). GitHub offers the recordings as downloads; choose **View raw** to save and open them. The first recording shows the original layout, with the same intake and recovery behavior. The review clip shows the current layout and the fix below.
 
-> Personal portfolio demonstration with synthetic data, not paid client work. Local SQLite CRM is fully runnable. The HubSpot adapter and optional AI integration have **not been tested with live accounts**. The n8n export is structurally checked, but not executed in n8n. No messages are sent.
+This is a personal project using fictional inquiries. Python and the local SQLite CRM run without accounts or API keys. The workflow was imported and run with n8n 2.39.8, including its scheduled retry; see the [setup and execution results](n8n/README.md). HubSpot and the optional model interface have not been tested with live accounts; notifications are saved drafts, not sent messages.
 
-![A completed inquiry, its owner, and its local notification draft](docs/screenshots/02-output.png)
+It is intended for a scoped form-to-CRM integration or a repair to an existing intake workflow. To adapt it for a team, start with a sample inquiry, the target contact fields, routing rules and an authorized test environment.
 
-## Try it in five minutes
+![Inquiry history alongside current contact details](docs/screenshots/02-output.png)
 
-Requires Python 3.12+; no packages, database server or API keys are needed for local mode. Clone the [repository](https://github.com/myp81607-dot/lead-to-crm-automation), or download its ZIP and open a terminal in the extracted folder:
+## Run it locally
+
+Install Python 3.12 or later. [Download the repository ZIP](https://github.com/myp81607-dot/lead-to-crm-automation/archive/refs/heads/main.zip), extract it, and open a terminal in the extracted directory. No Python package installation is required.
 
 ```sh
-git clone https://github.com/myp81607-dot/lead-to-crm-automation.git
-cd lead-to-crm-automation
 python app.py
 ```
 
-Open **http://127.0.0.1:8765**. In a second terminal, load seven synthetic examples:
+Open [localhost:8765](http://127.0.0.1:8765). Choose **New inquiry → Fill sample → Submit inquiry**, or load the seven supplied examples from another terminal:
 
 ```sh
 python demo.py
 ```
 
-Or choose **New inquiry → Fill sample → Submit inquiry**. A persistent SQLite database is created under `data/` and excluded from Git. Re-running `demo.py` replays the same IDs without creating extra events. Stop the server with Ctrl+C. Use `python app.py --db data/another-demo.db` for a fresh workspace.
+The examples include an invalid email, an unclassified request, a simulated credential failure and a write whose result needs checking. Run the command again to see exact event replays without new records. Data stays in `data/leads.db`, which is excluded from Git. Ctrl+C stops the server; `python app.py --db data/fresh.db` starts with a separate database.
 
-## See the useful behavior
+## Use your own inquiry and rules
 
-| Try this | What you can inspect |
-| --- | --- |
-| Submit a valid inquiry | A service/region owner, contact ID, original text, processing history and saved draft. |
-| Replay that exact event | `duplicate: true`; no second CRM attempt or draft. |
-| Use a new event ID with the same email | Another inquiry updates the existing contact; both inquiry histories remain. |
-| Change service from automation to analytics | Assignment changes from Workflow team to Data team. Rules are in [rules.json](rules.json). |
-| Submit an invalid email or choose “unsure” | A review item with reasons, zero CRM attempts, and an editable correction form. |
-| Select local “timeout after write” | An uncertain result; **Verify CRM result** reads back the event marker and intended fields before completing. |
-| Select local rate limit or credential failure | Due-time retry with at most three attempts, or an operator-blocked item. |
+Copy [examples/lead.json](examples/lead.json) to `data/my-inquiry.json`. Replace the details with data you have permission to process, choose a service and region, and give each new inquiry a new `event_id`. Keep the ID and exact payload when retrying the same delivery.
 
-<details>
-<summary>Real running screenshots: input and exception handling</summary>
-
-![Synthetic inquiry input](docs/screenshots/01-input.png)
-![Uncertain write waiting for read-back verification](docs/screenshots/03-exception.png)
-
-</details>
-
-[Watch the short browser recording](docs/demo.webm) · [90-second walkthrough](docs/demo.md)
-
-## How it works
-
-```mermaid
-flowchart LR
-    F[Form or n8n webhook] --> V[Validate + normalize]
-    V -->|Needs correction| H[Human review]
-    H --> V
-    V --> R[Explicit service + region rules]
-    R --> Q[(SQLite event queue)]
-    Q --> C[Local CRM or HubSpot adapter]
-    C -->|Confirmed read-back| D[Local notification draft]
-    C -->|Known temporary rejection| T[Bounded retry]
-    T --> Q
-    C -->|Uncertain write| U[Reconcile by reading CRM]
+```sh
+curl -X POST http://127.0.0.1:8765/api/leads -H "Content-Type: application/json" --data-binary @data/my-inquiry.json
 ```
 
-The Python backend owns validation, deduplication and recovery. The [n8n export](n8n/README.md) orchestrates webhook intake and due retries using the same API. This avoids two components independently retrying the same write. The English UI uses vanilla JavaScript and the API's actual stored results.
+On Windows use `curl.exe`, or the PowerShell command in [operations.md](docs/operations.md). Change the team names in [rules.json](rules.json), then submit a new inquiry. For example, replacing `"automation": "Workflow team"` with `"automation": "Intake team"` assigns the next automation request to Intake team. Earlier histories keep their original assignment.
 
-Event IDs deduplicate deliveries; normalized email deduplicates contacts. They are different keys. Reusing an event ID with different input returns HTTP 409. Unfinished writes for one contact are processed in order so an older retry cannot overwrite a later inquiry. After an interrupted write, restart moves the event to reconciliation instead of repeating it.
+For n8n, follow the [same-host setup](n8n/README.md). It imports the supplied workflow and calls the same API. Python owns duplicate handling and retries; n8n supplies the webhook and the minute-by-minute retry trigger.
 
-## Verification
+## When an inquiry needs attention
+
+| What you see | What to do |
+| --- | --- |
+| Needs review | Correct missing or invalid fields and submit the correction. The original submission remains in its history. |
+| Filed · contact unchanged | A newer inquiry has updated the same email, or has an uncertain CRM result. The old request is assigned and retained, but its details are not written over the newer request. Open the linked inquiry or current contact details. |
+| Retry scheduled | Wait until the due time. The n8n schedule, or **Process due retries**, advances it. A CRM step has at most three attempts. |
+| Verify result | **Verify CRM result** reads the CRM and checks the event marker and intended fields. A mismatch stays unresolved; no write is repeated. |
+| Blocked | Inspect the credential/configuration error or exhausted retry count before another action. Bad credentials are not retried automatically. |
+
+An older request waiting for review does not stop a new valid request. Correcting the old request later also does not make its contact details current. Receipt order decides that, including when the correction changes its email to an existing contact.
+
+## What has been checked
+
+The review-ordering bug was reproduced with `Old company / unsure → New company / automation → correct only the old service`. Before the fix, the contact reverted to Old company. It now keeps the newer company, description and event ID, while the old inquiry is filed without a CRM write.
+
+Six targeted review tests and two existing sequencing tests passed on Python 3.14.5 / Windows. They cover a corrected email matching a newer contact, ordinary correction, a different email, a newer uncertain write, restart recovery and retry order. [Test output](docs/test-results.txt) retains the earlier 23-test baseline and the current targeted results. The baseline's 36 synthetic submissions produced 34 events, 29 completed after recovery, 5 review items and 27 contacts; those are fixture behavior checks, not production or model accuracy figures.
 
 ```sh
 python -m unittest discover -s tests -v
 ```
 
-**23 tests passed on Python 3.12.14 / Windows**, including a 36-submission synthetic corpus: 34 distinct events, 2 exact replays, 29 completed events after retry/read-back recovery, 5 review items and 27 local contacts. The corpus's two replays introduced zero extra CRM attempts. Tests also cover input/rule changes, invalid fields, credential failures, bounded backoff, unknown outcomes, same-contact ordering and restart recovery. An earlier 22-test version also passed on Python 3.14.5. The committed test output records the final 23-test run.
+Real n8n checks, versions and the repeatable command are in [n8n/README.md](n8n/README.md). Timeouts and rate limits in local CRM mode are explicit simulations. No paid inference, live HubSpot write or real notification was performed.
 
-These are deterministic behavior checks, **not AI classification accuracy or production reliability measurements**. HubSpot request shapes and AI failure handling are tested offline. No model was called; external model usage/cost was zero. See [actual test output](docs/test-results.txt), [synthetic inputs](examples/acceptance.json), and [integration details](docs/operations.md).
+## Before using an external CRM
 
-## Scope and tradeoffs
+Run one process per database on your local machine. Public hosting, authentication, multiple teams and retention policies are outside this version. The backend binds to loopback and should not be exposed as an unauthenticated public service.
 
-- Local-only, single-process demonstration. It has no production authentication, tenant isolation or public deployment setup. Run only one server per database.
-- AI is off by default. With an explicitly configured compatible endpoint it offers an advisory summary/category; form fields still control routing. A failed model response is labeled unavailable. Live model quality is unverified.
-- HubSpot mode requires an operator-provided test-account token. It writes contact name, email, company and description, including an event marker; it does not assign HubSpot owners or send notifications. Live account permissions and behavior remain unverified.
-- A read-back mismatch stays unresolved. The tool never treats “not found” after a timeout as permission to create again. An operator must inspect the external CRM; there is no force-success button.
-- Contacts hold the latest details, while each inquiry keeps its own input, route, correction history and draft. Email aliases are not merged. Notifications are local drafts only.
-- n8n needs a same-host local instance. No cloud connection, container networking, live HubSpot test or video narration is included.
+The HubSpot adapter replaces contact name, company and description with the accepted inquiry's values; the description includes an event marker. It does not assign HubSpot owners. Agree field mapping and obtain an authorized test account before enabling it. [Operations and API details](docs/operations.md) cover the token environment variable, read-back behavior, failures and optional advisory model configuration.
 
-## What I implemented and referenced
-
-Original implementation: persistent queue and state transitions, two distinct deduplication paths, contact sequencing, read-back recovery, rule explanations, correction UI, local fault simulator, optional adapters, tests, synthetic examples and n8n export. Developed with AI assistance; results above are from actual execution.
-
-The public [n8n lead-capture template by Mohammad Abubakar](https://n8n.io/workflows/12374-capture-website-leads-to-hubspot-or-google-sheets-with-slack-follow-up/) informed the basic intake-to-follow-up flow. Official [n8n HubSpot documentation](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.hubspot/) and [HubSpot Contacts documentation](https://developers.hubspot.com/docs/api-reference/legacy/crm/objects/contacts/guide) informed integration boundaries and email lookup. No template JSON or third-party code was copied; [reference and license notes](docs/references.md) explain the specific borrowings. Original code is [MIT licensed](LICENSE).
-
-**Portfolio summary:** A runnable inquiry-to-contact workflow with duplicate handling, human review and failure recovery, demonstrated on synthetic data. Suitable as a starting point for a scoped form-to-CRM integration; no client results or commercial savings are claimed.
+The code and small n8n export were written for this project, with AI-assisted development. The public n8n lead-capture template informed the basic flow; official n8n and HubSpot documentation informed the integration. No template code was copied. See [references and license notes](docs/references.md); original code is [MIT licensed](LICENSE).

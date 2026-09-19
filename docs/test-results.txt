@@ -26,3 +26,27 @@ test_timeout_after_write_reconciles_without_second_write (test_pipeline.Pipeline
 Ran 23 tests in 0.733s
 
 OK
+
+Revision checks — 2026-09-19, Windows, Python 3.14.5
+Source revision: older review is filed without overwriting newer contact details.
+Before the fix: review_ordering suite ran 6 tests; 4 failed, including Old company replacing New company.
+
+python -m unittest discover -s tests -p test_review_ordering.py -v
+Ran 6 tests in 0.152s
+OK
+
+python -m unittest discover -s tests -p test_pipeline.py -k older_retry -v
+Ran 1 test in 0.039s
+OK
+
+python -m unittest discover -s tests -p test_pipeline.py -k uncertain_prior -v
+Ran 1 test in 0.033s
+OK
+
+After wording correction for the newer uncertain result:
+python -m unittest discover -s tests -p test_review_ordering.py -k later_uncertain -v
+Ran 1 test in 0.030s
+OK
+
+The earlier 23-test output above is retained as baseline evidence, not claimed as a new full-suite run.
+Independent reviewer also ran the 6 new cases and 2 sequencing cases successfully.

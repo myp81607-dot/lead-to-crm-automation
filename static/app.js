@@ -3,8 +3,9 @@
 const state = { events: [], contacts: [], stats: {}, mode: "local", selectedId: null, filter: "all", view: "queue", reviewId: null, busy: false };
 const byId = id => document.getElementById(id);
 const escapeHTML = value => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
-const labels = { completed: "Complete", needs_review: "Needs review", retry_wait: "Retry scheduled", blocked: "Blocked", reconcile_required: "Verify result", blocked_contact: "Contact held" };
+const labels = { completed: "Contact updated", archived: "Filed · contact unchanged", needs_review: "Needs review", retry_wait: "Retry scheduled", blocked: "Blocked", reconcile_required: "Verify result", blocked_contact: "Contact held" };
 const attentionStatuses = new Set(["needs_review", "blocked", "reconcile_required", "blocked_contact"]);
+const handledStatuses = new Set(["completed", "archived"]);
 const serviceLabels = { automation: "Automation", analytics: "Analytics", support: "Support", unsure: "Needs scoping" };
 const regionLabels = { americas: "Americas", emea: "EMEA", apac: "APAC" };
 let toastTimer;
@@ -65,13 +66,13 @@ function showView(view) {
   ["queue", "contacts", "intake"].forEach(name => { byId(`${name}-view`).hidden = name !== view; });
   document.querySelectorAll("[data-view]").forEach(button => button.classList.toggle("active", button.dataset.view === view));
   byId("breadcrumb-current").textContent = { queue: "Lead queue", contacts: "Contacts", intake: state.reviewId ? "Correct inquiry" : "New inquiry" }[view];
-  byId("page-title").textContent = { queue: "A clear queue. A better handoff.", contacts: "The right context, in one place.", intake: "Start with a real inquiry." }[view];
-  byId("page-subtitle").textContent = { queue: "Capture the inquiry, find the right owner, and keep the contact up to date.", contacts: "See the contact records created and updated by the processing queue.", intake: "Follow one request from the form to an explained, traceable outcome." }[view];
+  byId("page-title").textContent = { queue: "Lead queue", contacts: "Contacts", intake: state.reviewId ? "Correct inquiry" : "New inquiry" }[view];
+  byId("page-subtitle").textContent = { queue: "Review inquiries, assign an owner, and check contact updates.", contacts: "Current contact details, separate from the history of each inquiry.", intake: state.reviewId ? "Fix the flagged details, then process the same inquiry again." : "Submit a request or use a sample to try the workflow." }[view];
   byId("new-lead-button").hidden = view === "intake";
 }
 
 function renderQueue() {
-  const visible = state.events.filter(event => state.filter === "all" || (state.filter === "attention" ? attentionStatuses.has(event.status) : event.status === "completed"));
+  const visible = state.events.filter(event => state.filter === "all" || (state.filter === "attention" ? attentionStatuses.has(event.status) : handledStatuses.has(event.status)));
   if (!visible.length) {
     byId("queue-list").innerHTML = `<div class="empty-state"><span class="empty-icon">${state.events.length ? "✓" : "↘"}</span><h3>${state.events.length ? "Nothing in this view" : "Your next lead starts here"}</h3><p>${state.events.length ? "Choose another filter to see the rest of the queue." : "Submit a sample inquiry to see validation, routing, and a contact update in action."}</p>${state.events.length ? "" : '<button class="button primary" data-action="new-sample">Try a sample inquiry</button>'}</div>`;
     return;
@@ -86,11 +87,13 @@ function renderQueue() {
 function renderDetail() {
   const event = state.events.find(item => eventId(item) === state.selectedId);
   if (!event) {
-    byId("detail-panel").innerHTML = '<div class="empty-state detail-empty"><span class="empty-icon">↗</span><h3>Every lead, in context.</h3><p>Select an inquiry to see its owner, CRM update, and processing history.</p></div>';
+    byId("detail-panel").innerHTML = '<div class="empty-state detail-empty"><h3>Select an inquiry</h3><p>Its next step, contact record, and history will appear here.</p></div>';
     return;
   }
   const lead = dataFor(event);
   const isComplete = event.status === "completed";
+  const isArchived = event.status === "archived";
+  const isHandled = handledStatuses.has(event.status);
   const needsAction = attentionStatuses.has(event.status);
   const reason = event.reason || (isComplete ? "The contact was saved and a local follow-up draft is ready." : "See the processing history for the current result.");
   const actionButtons = [];
@@ -100,13 +103,44 @@ function renderDetail() {
   actionButtons.push('<button class="button secondary" data-action="replay">Replay original event</button>');
   const logs = (event.logs || []).map(log => `<li><div class="timeline-heading"><span>${escapeHTML(pretty(log.action))}</span><time>${escapeHTML(time(log.time))}</time></div><p>${escapeHTML(typeof log.detail === "object" ? JSON.stringify(log.detail) : log.detail)}</p></li>`).join("");
   const reviewText = event.status === "reconcile_required" ? "Verification only reads the CRM. It does not send the inquiry again." : event.status === "blocked_contact" ? "Another event for this contact has an unresolved result. Resolve that event before retrying this one." : "";
-  byId("detail-panel").innerHTML = `<div class="detail-header"><div class="detail-topline"><span class="detail-kicker">INQUIRY DETAILS</span>${statusHTML(event.status)}</div><h2>${escapeHTML(lead.name || "Unnamed inquiry")}</h2><p class="detail-company">${escapeHTML(lead.company || "Company not supplied")}<span>·</span>${escapeHTML(regionLabels[lead.region] || "Region not supplied")}${lead.urgency === "urgent" ? "<span>·</span>Urgent" : ""}</p><p class="detail-contact-line">${escapeHTML(lead.email || "Email needs review")}</p></div><div class="detail-content"><section class="detail-section"><div class="detail-label">THE REQUEST</div><p class="detail-message">${escapeHTML(lead.message || "No message provided.")}</p></section><section class="detail-section routing-box"><div><span>Assigned owner</span><strong>${escapeHTML(event.owner || "Awaiting review")}</strong></div><div><span>Service</span><strong>${escapeHTML(serviceLabels[lead.service] || "To be reviewed")}</strong></div><p class="routing-reason">${escapeHTML(event.routing_reason || "Routing runs after the input passes validation.")}</p></section><section class="detail-section outcome-box ${needsAction ? (event.status === "blocked" ? "error" : "warning") : !isComplete ? "warning" : ""}"><div class="outcome-title"><span aria-hidden="true">${isComplete ? "✓" : "!"}</span>${escapeHTML(isComplete ? "Contact updated" : labels[event.status] || pretty(event.status))}</div><p>${escapeHTML(reason)}</p>${event.contact_id ? `<p>Confirmed CRM contact: ${escapeHTML(event.contact_id)}</p>` : ""}${event.next_attempt ? `<p>Next attempt: ${escapeHTML(dateTime(event.next_attempt))}</p>` : ""}${reviewText ? `<p>${escapeHTML(reviewText)}</p>` : ""}<div class="detail-actions">${actionButtons.join("")}</div></section>${event.draft ? `<section class="detail-section"><div class="detail-label">FOLLOW-UP DRAFT · SAVED LOCALLY, NOT SENT</div><div class="draft-text">${escapeHTML(event.draft)}</div></section>` : ""}${event.extracted ? `<details class="detail-disclosure"><summary>Extraction <span>${escapeHTML(pretty(event.extracted.method || "rules"))}</span></summary><p class="detail-message">${escapeHTML(event.extracted.summary || "No summary available.")}</p>${event.extracted.ai_suggestion ? `<pre class="raw-payload">${escapeHTML(JSON.stringify(event.extracted.ai_suggestion, null, 2))}</pre>` : ""}</details>` : ""}<details class="detail-disclosure" open><summary>Processing history <span>${(event.logs || []).length} entries</span></summary><ol class="timeline">${logs || '<li><p>No history recorded yet.</p></li>'}</ol></details><details class="detail-disclosure"><summary>Original submission</summary><pre class="raw-payload">${escapeHTML(JSON.stringify(event.raw || {}, null, 2))}</pre></details><div class="event-metadata"><code>${escapeHTML(lead.event_id || event.id)}</code><span>${escapeHTML(event.attempts ?? 0)} CRM attempt${event.attempts === 1 ? "" : "s"}</span></div></div>`;
+  const currentContact = state.mode === "local" && event.normalized?.email
+    ? state.contacts.find(contact => contact.email === event.normalized.email)
+    : null;
+  const contactHTML = currentContact
+    ? `<div class="current-contact-values"><strong>${escapeHTML(currentContact.name || "Unnamed contact")}</strong><span>${escapeHTML(currentContact.company || "No company supplied")}</span><span>${escapeHTML(currentContact.email)}</span></div><p class="contact-context">${escapeHTML(currentContact.description || "No description saved.")}</p><div class="contact-reference"><span>CRM contact <code>${escapeHTML(currentContact.id)}</code></span>${currentContact.last_event_id ? `<span>Last updated by <button class="text-button event-link" data-event="${escapeHTML(currentContact.last_event_id)}">${escapeHTML(currentContact.last_event_id)}</button></span>` : ""}</div>`
+    : `<p class="contact-context">${state.mode === "hubspot" ? "Contact values are not loaded from HubSpot. Use the confirmed contact ID to check them there." : "No current local contact is available for this inquiry’s validated email."}</p>`;
+  byId("detail-panel").innerHTML = `
+    <div class="detail-header">
+      <div class="detail-topline"><span class="detail-kicker">Inquiry</span>${statusHTML(event.status)}</div>
+      <h2>${escapeHTML(lead.name || "Unnamed inquiry")}</h2>
+      <p class="detail-company">${escapeHTML(lead.company || "Company not supplied")}<span>·</span>${escapeHTML(regionLabels[lead.region] || "Region not supplied")}${lead.urgency === "urgent" ? "<span>·</span>Urgent" : ""}</p>
+      <p class="detail-contact-line">${escapeHTML(lead.email || "Email needs review")}</p>
+      <div class="event-metadata"><span>Event <code>${escapeHTML(event.id)}</code></span><span>${escapeHTML(event.attempts ?? 0)} CRM attempt${event.attempts === 1 ? "" : "s"}</span></div>
+    </div>
+    <div class="detail-content">
+      <section class="detail-section outcome-box ${needsAction ? (event.status === "blocked" ? "error" : "warning") : !isHandled ? "warning" : ""} ${isArchived ? "archived" : ""}">
+        <div class="outcome-title"><span aria-hidden="true">${isHandled ? "✓" : "!"}</span>${escapeHTML(labels[event.status] || pretty(event.status))}</div>
+        <p>${escapeHTML(reason)}</p>
+        ${event.contact_id ? `<p>Confirmed CRM contact: <code>${escapeHTML(event.contact_id)}</code></p>` : ""}
+        ${event.superseded_by ? `<p>Newer inquiry: <button class="text-button event-link" data-event="${escapeHTML(event.superseded_by)}">${escapeHTML(event.superseded_by)} →</button></p>` : ""}
+        ${event.next_attempt ? `<p>Next attempt: ${escapeHTML(dateTime(event.next_attempt))}</p>` : ""}
+        ${reviewText ? `<p>${escapeHTML(reviewText)}</p>` : ""}
+        <div class="detail-actions">${actionButtons.join("")}</div>
+      </section>
+      <section class="detail-section current-contact"><h3 class="detail-label">Current contact</h3>${contactHTML}</section>
+      <section class="detail-section"><h3 class="detail-label">This inquiry’s request</h3><p class="detail-message">${escapeHTML(lead.message || "No message provided.")}</p></section>
+      <section class="detail-section routing-box"><div><span>Assigned owner</span><strong>${escapeHTML(event.owner || "Awaiting review")}</strong></div><div><span>Service</span><strong>${escapeHTML(serviceLabels[lead.service] || "To be reviewed")}</strong></div><p class="routing-reason">${escapeHTML(event.routing_reason || "Routing runs after the input passes validation.")}</p></section>
+      ${event.draft ? `<section class="detail-section"><h3 class="detail-label">Follow-up draft <span>· saved locally, not sent</span></h3>${isArchived ? '<p class="draft-note">Historical inquiry — contact unchanged. Check the newer inquiry before following up.</p>' : ""}<div class="draft-text">${escapeHTML(event.draft)}</div></section>` : ""}
+      ${event.extracted ? `<details class="detail-disclosure"><summary>Extraction <span>${escapeHTML(pretty(event.extracted.method || "rules"))}</span></summary><p class="detail-message">${escapeHTML(event.extracted.summary || "No summary available.")}</p>${event.extracted.ai_suggestion ? `<pre class="raw-payload">${escapeHTML(JSON.stringify(event.extracted.ai_suggestion, null, 2))}</pre>` : ""}</details>` : ""}
+      <details class="detail-disclosure"><summary>Processing history <span>${(event.logs || []).length} entries</span></summary><ol class="timeline">${logs || '<li><p>No history recorded yet.</p></li>'}</ol></details>
+      <details class="detail-disclosure"><summary>Original submission</summary><pre class="raw-payload">${escapeHTML(JSON.stringify(event.raw || {}, null, 2))}</pre></details>
+    </div>`;
 }
 
 function renderContacts() {
   if (state.mode === "hubspot") { byId("contacts-list").innerHTML = '<div class="empty-state"><span class="empty-icon">↗</span><h3>Contacts live in HubSpot</h3><p>This workspace records confirmed CRM contact IDs on each inquiry. It does not load your full HubSpot contact directory.</p></div>'; return; }
   if (!state.contacts.length) { byId("contacts-list").innerHTML = '<div class="empty-state"><span class="empty-icon">♧</span><h3>No contacts yet</h3><p>A successful inquiry creates or updates a contact here.</p></div>'; return; }
-  byId("contacts-list").innerHTML = `<table class="contacts-table"><thead><tr><th>CONTACT</th><th>COMPANY</th><th>LATEST CONTEXT</th><th>CRM ID</th></tr></thead><tbody>${state.contacts.map(contact => `<tr><td><strong>${escapeHTML(contact.name || "Unnamed contact")}</strong><small>${escapeHTML(contact.email)}</small></td><td>${escapeHTML(contact.company || "—")}</td><td class="description">${escapeHTML(contact.description || "—")}</td><td><span class="contact-table-id">${escapeHTML(contact.id)}</span></td></tr>`).join("")}</tbody></table>`;
+  byId("contacts-list").innerHTML = `<table class="contacts-table"><thead><tr><th>Contact</th><th>Company</th><th>Latest request</th><th>Last updated by</th></tr></thead><tbody>${state.contacts.map(contact => `<tr><td><strong>${escapeHTML(contact.name || "Unnamed contact")}</strong><small>${escapeHTML(contact.email)}</small><small>CRM contact ${escapeHTML(contact.id)}</small></td><td>${escapeHTML(contact.company || "—")}</td><td class="description">${escapeHTML(contact.description || "—")}</td><td>${contact.last_event_id ? `<button class="text-button event-link" data-event="${escapeHTML(contact.last_event_id)}">${escapeHTML(contact.last_event_id)} →</button>` : "—"}</td></tr>`).join("")}</tbody></table>`;
 }
 
 function startIntake() {
@@ -120,6 +154,7 @@ function startIntake() {
   byId("fill-sample-button").hidden = false;
   byId("fill-failure-button").hidden = false;
   byId("simulation-box").hidden = state.mode !== "local";
+  byId("simulation-box").open = false;
   byId("form-error").hidden = true;
   showView("intake");
 }
@@ -189,7 +224,16 @@ byId("refresh-button").addEventListener("click", () => refresh());
 byId("process-due-button").addEventListener("click", event => runAction("process-due", event.currentTarget));
 document.addEventListener("click", event => {
   const card = event.target.closest("[data-event]");
-  if (card) { state.selectedId = card.dataset.event; renderQueue(); renderDetail(); }
+  if (card) {
+    state.selectedId = card.dataset.event;
+    if (!card.classList.contains("lead-card")) {
+      state.filter = "all";
+      document.querySelectorAll("[data-filter]").forEach(button => button.classList.toggle("active", button.dataset.filter === "all"));
+    }
+    showView("queue");
+    renderQueue();
+    renderDetail();
+  }
   const actionButton = event.target.closest("[data-action]");
   if (actionButton) runAction(actionButton.dataset.action, actionButton);
 });
