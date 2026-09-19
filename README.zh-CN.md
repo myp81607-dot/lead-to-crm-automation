@@ -10,6 +10,8 @@
 
 这是使用虚构咨询的个人项目。本地 Python 与 SQLite CRM 无需账号或密钥即可运行；工作流已在 n8n 2.39.8 中实际导入并运行，包含定时重试，详见[安装与执行记录](n8n/README.md)。HubSpot 和可选模型接口未实连验证，通知只保存为草稿，不会发送。
 
+**验证结果：**在 Ubuntu 24.04 / Python 3.12.14 上执行 `python -m unittest discover -s tests -v`，完整 29 项测试全部通过。[成功的 CI 运行](https://github.com/myp81607-dot/lead-to-crm-automation/actions/runs/35426756353)，对应提交 [`f1f7d80df760ffd811979924f571ce6f5a0cb95d`](https://github.com/myp81607-dot/lead-to-crm-automation/commit/f1f7d80df760ffd811979924f571ce6f5a0cb95d)。
+
 适合据此定制一个表单到 CRM 的同步，或修复已有咨询流程。开始前需要一份样例输入、目标联系人字段、分派规则，以及获授权的测试环境。
 
 ![咨询历史与当前联系人资料并列显示](docs/screenshots/02-output.png)
@@ -56,13 +58,15 @@ Windows 使用 `curl.exe`，或采用 [operations.md](docs/operations.md) 中的
 
 ## 实际检查过什么
 
-本轮先复现了 `Old company / unsure → New company / automation → 只修旧咨询类别`。修复前联系人会退回 Old company；现在公司名、description 和事件 ID 仍对应较新咨询，旧请求被分派留档，CRM 写入次数为零。
+修复前先复现了 `Old company / unsure → New company / automation → 只修旧咨询类别`。当时联系人会退回 Old company；现在公司名、description 和事件 ID 仍对应较新咨询，旧请求被分派留档，CRM 写入次数为零。
 
-在 Windows / Python 3.14.5 上，六项复核相关测试与两项既有顺序测试通过，覆盖改邮箱碰到新联系人、普通修正、另一邮箱、较新写入不确定、重启恢复和重试顺序。[测试输出](docs/test-results.txt)保留此前 23 项基线及本轮针对性结果。基线的 36 次合成提交产生 34 个独立事件、恢复后 29 个完成、5 个待复核和 27 个联系人；这是固定样例上的行为验证，不是生产效果或模型准确率。
+上方链接中的完整 29 项 CI 测试包含原有 23 项测试及六项复核测试。其中的复核与顺序检查覆盖改邮箱碰到新联系人、普通修正、另一邮箱、较新写入不确定、重启恢复和重试顺序。完整测试命令为：
 
 ```sh
 python -m unittest discover -s tests -v
 ```
+
+[历史测试输出](docs/test-results.txt)保留此前 23 项基线，以及修复期间在 Windows / Python 3.14.5 上执行的六项复核测试和两项既有顺序测试。基线的 36 次合成提交产生 34 个独立事件、恢复后 29 个完成、5 个待复核和 27 个联系人；这是固定样例上的行为验证，不是生产效果或模型准确率。
 
 n8n 的实际执行、软件版本和复验命令见 [n8n/README.md](n8n/README.md)。本地模式下的超时与限流明确属于故障模拟；没有执行付费推理、真实 HubSpot 写入或真实消息发送。
 

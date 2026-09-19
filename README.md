@@ -10,6 +10,8 @@ Form or n8n webhook → validate and assign → update the contact, or leave a c
 
 This is a personal project using fictional inquiries. Python and the local SQLite CRM run without accounts or API keys. The workflow was imported and run with n8n 2.39.8, including its scheduled retry; see the [setup and execution results](n8n/README.md). HubSpot and the optional model interface have not been tested with live accounts; notifications are saved drafts, not sent messages.
 
+**Validation:** all 29 tests passed on Ubuntu 24.04 / Python 3.12.14 with `python -m unittest discover -s tests -v`. [Successful CI run](https://github.com/myp81607-dot/lead-to-crm-automation/actions/runs/35426756353), tested commit [`f1f7d80df760ffd811979924f571ce6f5a0cb95d`](https://github.com/myp81607-dot/lead-to-crm-automation/commit/f1f7d80df760ffd811979924f571ce6f5a0cb95d).
+
 It is intended for a scoped form-to-CRM integration or a repair to an existing intake workflow. To adapt it for a team, start with a sample inquiry, the target contact fields, routing rules and an authorized test environment.
 
 ![Inquiry history alongside current contact details](docs/screenshots/02-output.png)
@@ -58,11 +60,13 @@ An older request waiting for review does not stop a new valid request. Correctin
 
 The review-ordering bug was reproduced with `Old company / unsure → New company / automation → correct only the old service`. Before the fix, the contact reverted to Old company. It now keeps the newer company, description and event ID, while the old inquiry is filed without a CRM write.
 
-Six targeted review tests and two existing sequencing tests passed on Python 3.14.5 / Windows. They cover a corrected email matching a newer contact, ordinary correction, a different email, a newer uncertain write, restart recovery and retry order. [Test output](docs/test-results.txt) retains the earlier 23-test baseline and the current targeted results. The baseline's 36 synthetic submissions produced 34 events, 29 completed after recovery, 5 review items and 27 contacts; those are fixture behavior checks, not production or model accuracy figures.
+The complete 29-test CI run linked above includes six review tests alongside the original 23 tests. The review and sequencing checks cover a corrected email matching a newer contact, ordinary correction, a different email, a newer uncertain write, restart recovery and retry order. Run the complete suite with:
 
 ```sh
 python -m unittest discover -s tests -v
 ```
+
+[Historical test output](docs/test-results.txt) retains the earlier 23-test baseline and the six review tests plus two existing sequencing tests run during the fix on Windows / Python 3.14.5. The baseline's 36 synthetic submissions produced 34 events, 29 completed after recovery, 5 review items and 27 contacts; those are fixture behavior checks, not production or model accuracy figures.
 
 Real n8n checks, versions and the repeatable command are in [n8n/README.md](n8n/README.md). Timeouts and rate limits in local CRM mode are explicit simulations. No paid inference, live HubSpot write or real notification was performed.
 
